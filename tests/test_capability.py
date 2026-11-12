@@ -250,6 +250,19 @@ async def test_generating_agent_instructions_carry_catalog():
     assert '"TextField"' in request.instructions
 
 
+def test_generating_instructions_explain_agent_actions():
+    """A submit button must send an event to the agent, not open a URL.
+
+    Without this, a live model gave a form's Submit button
+    'openUrl("#submit")', and the click never reached the agent.
+    """
+    instructions = a2ui_capability.GENERATING_INSTRUCTIONS
+
+    assert '"action": {"event": {"name":' in instructions
+    assert '"context"' in instructions
+    assert "openUrl" in instructions
+
+
 async def test_generate_a2ui_retries_invalid_layout():
     generator = _Generator(_invalid, _valid)
 

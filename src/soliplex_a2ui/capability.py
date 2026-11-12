@@ -41,6 +41,11 @@ GENERATING_INSTRUCTIONS = (
     '{"@path": "/json/pointer"}; never copy values into the components.\n'
     "- Bind an input to a path the data model does not have when the user "
     "is to fill it in.\n"
+    "- A button that sends something back (submit, choose, confirm) has "
+    '"action": {"event": {"name": "<verb>", "context": {...}}}, where '
+    '"context" binds each value the agent needs, e.g. '
+    '{"title": {"@path": "/title"}}. The click reaches the agent with '
+    'those values. Use "openUrl" only to open a real web address.\n'
     "- Use only components and properties the catalog defines.\n\n"
     f"Catalog:\n{json.dumps(_CATALOG.to_json())}"
 )
