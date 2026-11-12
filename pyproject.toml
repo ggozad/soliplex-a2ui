@@ -1,0 +1,45 @@
+[project]
+name = "soliplex-a2ui"
+version = "0.1.0"
+description = "A2UI surfaces over AG-UI for pydantic-ai agents"
+readme = "README.md"
+authors = [
+    { name = "Yiorgis Gozadinos", email = "ggozadinos@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "ag-ui-protocol >= 0.1.18, < 0.2",
+]
+
+[dependency-groups]
+dev = [
+    "coverage >= 7.13.5, < 7.14",
+    "pytest >= 9.0.2, < 9.1",
+    "pytest-cov >= 7.0.0, < 7.1",
+    "ruff >= 0.16.6, < 0.17",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.7,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=src/soliplex_a2ui --cov=tests --cov-branch --cov-fail-under=100"
+
+[tool.coverage.report]
+show_missing = true
+
+[tool.ruff]
+line-length = 79
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["F", "E", "B", "U", "I", "PD", "TRY", "PT"]
+ignore = ["PT019"]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+
+[tool.ruff.lint.flake8-pytest-style]
+parametrize-names-type = "csv"

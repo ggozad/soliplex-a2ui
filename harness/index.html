@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A2UI Harness</title>
+<style>
+  :root { color-scheme: light dark; --bg: #ffffff; --fg: #1f1f1f; --user: #dce8fd; --assistant: #ececec; --muted: #555555; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1e1e1e; --fg: #eaeaea; --user: #1f3a5f; --assistant: #2d2d2d; --muted: #a8a8a8; }
+  }
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 24px auto; padding: 0 16px; background: var(--bg); color: var(--fg); }
+  .msg { margin: 8px 0; padding: 8px 12px; border-radius: 8px; white-space: pre-wrap; color: var(--fg); }
+  .user { background: var(--user); }
+  .assistant { background: var(--assistant); }
+  .log { font: 12px ui-monospace, monospace; color: var(--muted); white-space: pre-wrap; }
+  form { display: flex; gap: 8px; margin-top: 16px; }
+  input { flex: 1; padding: 8px; }
+</style>
+</head>
+<body>
+<h1>A2UI harness</h1>
+<p>Soliplex server: <code id="target"></code></p>
+<div id="chat"></div>
+<form id="send"><input id="prompt" value="Ask me for my name"><button>Send</button></form>
+<h3>Wire log</h3>
+<div id="log" class="log"></div>
+<script type="module">
+import {MessageProcessor} from "https://esm.sh/@a2ui/web_core@0.15.0";
+import {basicCatalog} from "https://esm.sh/@a2ui/web_core@0.15.0/catalogs/basic/v1";
+import "https://esm.sh/@a2ui/lit@0.15.0";
+
+const params = new URLSearchParams(location.search);
+const SERVER = params.get("server") ?? "http://127.0.0.1:8000";
+const ROOM = params.get("room") ?? "a2ui";
+const BASE = `${SERVER}/api/v1/rooms/${encodeURIComponent(ROOM)}/agui`;
+document.getElementById("target").textContent = `${SERVER}, room ${ROOM}`;
+const chat = document.getElementById("chat");
+const log = (line) => { document.getElementById("log").textContent += line + "\n"; };
+
+let threadId = null;
+let lastRunId = null;
+let history = [];
+
+const processor = new MessageProcessor([basicCatalog], (action) => {
+  log("ACTION from renderer: " + JSON.stringify(action));
+  runAgent(null, {a2uiAction: {userAction: action}});
+});
+
+function bubble(cls, text) {
+  const div = document.createElement("div");
+  div.className = `msg ${cls}`;
+  div.textContent = text;
+  chat.appendChild(div);
+  return div;
+}
+
+function paint(ops) {
+  processor.processMessages(ops);
+  const surfaceId = ops.find((op) => op.createSurface)?.createSurface.surfaceId;
+  const surface = surfaceId && processor.model.getSurface(surfaceId);
+  if (!surface) { log("no surface to mount"); return; }
+  const el = document.createElement("a2ui-surface");
+  el.surface = surface;
+  chat.appendChild(el);
+}
+
+async function newRun() {
+  if (threadId === null) {
+    const thread = await (await fetch(BASE, {method: "POST", headers: {"content-type": "application/json"}, body: "{}"})).json();
+    threadId = thread.thread_id;
+    return Object.keys(thread.runs)[0];
+  }
+  const run = await (await fetch(`${BASE}/${threadId}`, {
+    method: "POST", headers: {"content-type": "application/json"},
+    body: JSON.stringify({parent_run_id: lastRunId}),
+  })).json();
+  return run.run_id;
+}
+
+async function runAgent(text, forwardedProps = null) {
+  const runId = await newRun();
+  if (text !== null) {
+    history.push({id: crypto.randomUUID(), role: "user", content: text});
+    bubble("user", text);
+  } else {
+    bubble("user", "[A2UI action sent]");
+  }
+  const body = {threadId, runId, state: {}, messages: history, tools: [], context: [], forwardedProps};
+  log(`POST run ${runId} forwardedProps=${JSON.stringify(forwardedProps)}`);
+  const resp = await fetch(`${BASE}/${threadId}/${runId}`, {
+    method: "POST", headers: {"content-type": "application/json", accept: "text/event-stream"},
+    body: JSON.stringify(body),
+  });
+  const reader = resp.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  let current = null;
+  for (;;) {
+    const {value, done} = await reader.read();
+    if (done) break;
+    buffer += value;
+    let idx;
+    while ((idx = buffer.indexOf("\n\n")) >= 0) {
+      const chunk = buffer.slice(0, idx);
+      buffer = buffer.slice(idx + 2);
+      const data = chunk.split("\n").filter((l) => l.startsWith("data: ")).map((l) => l.slice(6)).join("");
+      if (!data) continue;
+      const ev = JSON.parse(data);
+      if (ev.type === "TEXT_MESSAGE_START") current = {id: ev.messageId, text: "", el: null};
+      if (ev.type === "TEXT_MESSAGE_CONTENT" && current) {
+        current.text += ev.delta;
+        current.el ??= bubble("assistant", "");
+        current.el.textContent = current.text;
+      }
+      if (ev.type === "TEXT_MESSAGE_END" && current) {
+        if (current.text) history.push({id: current.id, role: "assistant", content: current.text});
+        current = null;
+      }
+      if (ev.type === "ACTIVITY_SNAPSHOT" && ev.activityType === "a2ui-surface") {
+        log("ACTIVITY_SNAPSHOT " + ev.messageId);
+        paint(ev.content.a2ui_operations);
+      }
+      if (ev.type === "RUN_ERROR") log("RUN_ERROR " + JSON.stringify(ev));
+    }
+  }
+  lastRunId = runId;
+  log(`run ${runId} finished`);
+}
+
+document.getElementById("send").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const input = document.getElementById("prompt");
+  runAgent(input.value);
+  input.value = "";
+});
+</script>
+</body>
+</html>
