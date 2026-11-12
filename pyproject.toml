@@ -8,13 +8,17 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
+    "a2ui-core >= 0.6, < 0.7",
     "ag-ui-protocol >= 0.1.18, < 0.2",
+    "pydantic-ai-slim >= 2.53.0, < 3.0",
 ]
 
 [dependency-groups]
 dev = [
+    "anyio >= 4.14.2, < 4.15",
     "coverage >= 7.13.5, < 7.14",
     "pytest >= 9.0.2, < 9.1",
+    "pytest-asyncio >= 1.4.0, < 1.5",
     "pytest-cov >= 7.0.0, < 7.1",
     "ruff >= 0.16.6, < 0.17",
 ]
@@ -25,6 +29,7 @@ build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
 addopts = "--cov=src/soliplex_a2ui --cov=tests --cov-branch --cov-fail-under=100"
 
 [tool.coverage.report]
