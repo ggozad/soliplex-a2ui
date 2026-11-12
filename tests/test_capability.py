@@ -208,9 +208,13 @@ def _agent(generator, **kwargs):
 
 async def test_generate_a2ui_paints_surface():
     generator = _Generator(_valid)
-    data = copy.deepcopy(DATA)
+    room_data = copy.deepcopy(DATA)
+    agent = Agent(
+        _room_model(generator, room_data=room_data),
+        capabilities=[a2ui_capability.A2UICapability()],
+    )
 
-    result = await _agent(generator).run("show Ada")
+    result = await agent.run("show Ada")
 
     part = _tool_return(result)
     exp_operations = a2ui_capability.surface_operations(
@@ -220,7 +224,13 @@ async def test_generate_a2ui_paints_surface():
         soliplex_a2ui.surface_event("call1", exp_operations)
     ]
     assert "surface_call1" in part.content
-    assert data == DATA
+    # The data model is the room agent's data, and the room agent's own
+    # copy is left as it was.
+    (event,) = part.metadata
+    assert event.content["a2ui_operations"][2]["updateDataModel"]["value"] == (
+        DATA
+    )
+    assert room_data == DATA
     (prompt,) = [
         p
         for p in generator.calls[0][0].parts
