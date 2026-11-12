@@ -16,12 +16,17 @@
   .log { font: 12px ui-monospace, monospace; color: var(--muted); white-space: pre-wrap; }
   form { display: flex; gap: 8px; margin-top: 16px; }
   input { flex: 1; padding: 8px; }
+  .status { display: flex; align-items: center; gap: 8px; margin: 8px 0; color: var(--muted); }
+  .status[hidden] { display: none; }
+  .spinner { width: 14px; height: 14px; border: 2px solid var(--muted); border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
 <h1>A2UI harness</h1>
 <p>Soliplex server: <code id="target"></code></p>
 <div id="chat"></div>
+<div id="status" class="status" hidden><span class="spinner"></span><span id="status-text"></span></div>
 <form id="send"><input id="prompt" value="Ask me for my name"><button>Send</button></form>
 <h3>Wire log</h3>
 <div id="log" class="log"></div>
@@ -78,6 +83,25 @@ async function newRun() {
   return run.run_id;
 }
 
+const statusEl = document.getElementById("status");
+const statusText = document.getElementById("status-text");
+let statusLabel = "";
+let statusStarted = 0;
+let statusTimer = null;
+const renderStatus = () => {
+  const seconds = Math.round((Date.now() - statusStarted) / 1000);
+  statusText.textContent = `${statusLabel} ${seconds}s`;
+};
+const setStatus = (label) => { statusLabel = label; renderStatus(); };
+const startStatus = () => {
+  statusStarted = Date.now();
+  statusEl.hidden = false;
+  setStatus("waiting for the model…");
+  statusTimer = setInterval(renderStatus, 1000);
+};
+const stopStatus = () => { clearInterval(statusTimer); statusEl.hidden = true; };
+const TOOL_LABELS = {generate_a2ui: "generating the interface…"};
+
 async function runAgent(text, forwardedProps = null) {
   const runId = await newRun();
   if (text !== null) {
@@ -88,6 +112,17 @@ async function runAgent(text, forwardedProps = null) {
   }
   const body = {threadId, runId, state: {}, messages: history, tools: [], context: [], forwardedProps};
   log(`POST run ${runId} forwardedProps=${JSON.stringify(forwardedProps)}`);
+  startStatus();
+  try {
+    await streamRun(runId, body);
+  } finally {
+    stopStatus();
+  }
+  lastRunId = runId;
+  log(`run ${runId} finished`);
+}
+
+async function streamRun(runId, body) {
   const resp = await fetch(`${BASE}/${threadId}/${runId}`, {
     method: "POST", headers: {"content-type": "application/json", accept: "text/event-stream"},
     body: JSON.stringify(body),
@@ -121,10 +156,14 @@ async function runAgent(text, forwardedProps = null) {
         paint(ev.content.a2ui_operations);
       }
       if (ev.type === "RUN_ERROR") log("RUN_ERROR " + JSON.stringify(ev));
+      if (ev.type === "REASONING_START") setStatus("thinking…");
+      if (ev.type === "TOOL_CALL_START") {
+        setStatus(TOOL_LABELS[ev.toolCallName] ?? `running ${ev.toolCallName}…`);
+      }
+      if (ev.type === "TOOL_CALL_RESULT") setStatus("waiting for the model…");
+      if (ev.type === "TEXT_MESSAGE_START") setStatus("writing…");
     }
   }
-  lastRunId = runId;
-  log(`run ${runId} finished`);
 }
 
 document.getElementById("send").addEventListener("submit", (e) => {
