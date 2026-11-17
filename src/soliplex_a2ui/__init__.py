@@ -43,7 +43,8 @@ def apply_user_action(
 ) -> agui_core.RunAgentInput:
     """Append the run's A2UI user action, if any, as a user message
 
-    Every call appends, so apply it once per run.
+    The run's messages are returned unchanged when they already hold the
+    action message, matched by id or name.
     """
     forwarded_props = run_input.forwarded_props
     if not isinstance(forwarded_props, dict):
@@ -58,10 +59,18 @@ def apply_user_action(
         return run_input
 
     digest = hashlib.sha256(run_input.run_id.encode()).digest()
+    message_id = f"a2ui-action-user-{digest.hex()}"
     name_suffix = base64.urlsafe_b64encode(digest).decode().rstrip("=")
+    name = f"{USER_ACTION_NAME_PREFIX}{name_suffix}"
+    if any(
+        m.role == "user" and (m.id == message_id or m.name == name)
+        for m in run_input.messages
+    ):
+        return run_input
+
     message = agui_core.UserMessage(
-        id=f"a2ui-action-{run_input.run_id}",
-        name=f"{USER_ACTION_NAME_PREFIX}{name_suffix}",
+        id=message_id,
+        name=name,
         content=USER_ACTION_PREFIX
         + json.dumps(user_action, separators=(",", ":")),
     )

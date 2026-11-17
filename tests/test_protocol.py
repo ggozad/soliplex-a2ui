@@ -69,8 +69,8 @@ def test_apply_user_action_appends_user_message():
     assert found.messages[0] == earlier
     (_, action_message) = found.messages
     assert action_message.role == "user"
-    assert action_message.id == f"a2ui-action-{RUN_ID}"
     digest = hashlib.sha256(RUN_ID.encode()).digest()
+    assert action_message.id == f"a2ui-action-user-{digest.hex()}"
     exp_suffix = base64.urlsafe_b64encode(digest).decode().rstrip("=")
     assert action_message.name == f"a2ui_action_context_{exp_suffix}"
     # The pattern '@ag-ui/a2ui-middleware' recognises action messages by.
@@ -97,5 +97,19 @@ def test_apply_user_action_appends_user_message():
 )
 def test_apply_user_action_without_action(forwarded_props):
     run_input = _run_input(forwarded_props)
+
+    assert soliplex_a2ui.apply_user_action(run_input) is run_input
+
+
+@pytest.mark.parametrize("field", ["id", "name"])
+def test_apply_user_action_skips_message_already_sent(field):
+    action = {"a2uiAction": {"userAction": USER_ACTION}}
+    sent = soliplex_a2ui.apply_user_action(_run_input(action)).messages[-1]
+    echoed = agui_core.UserMessage(
+        id=sent.id if field == "id" else "client-id",
+        name=sent.name if field == "name" else None,
+        content="echoed",
+    )
+    run_input = _run_input(action, messages=[echoed])
 
     assert soliplex_a2ui.apply_user_action(run_input) is run_input

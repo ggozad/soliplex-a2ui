@@ -10,8 +10,8 @@ The payloads follow `@ag-ui/a2ui-middleware`:
   operations to the client. A tool returns it in `ToolReturn.metadata`.
 - `apply_user_action(run_input)` appends the user action in
   `forwardedProps.a2uiAction.userAction` to the run's messages as a user
-  message named `a2ui_action_context_<hash of the run id>`. Apply it once
-  per run.
+  message named `a2ui_action_context_<hash of the run id>`. When the
+  messages already hold that message, it returns the run input unchanged.
 
 ## Capability
 
