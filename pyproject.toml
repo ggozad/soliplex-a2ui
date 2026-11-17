@@ -9,7 +9,7 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "a2ui-core >= 0.6, < 0.7",
-    "ag-ui-protocol >= 0.1.18, < 0.2",
+    "ag-ui-protocol >= 1.0.0, < 1.1",
     "pydantic-ai-slim >= 2.53.0, < 3.0",
 ]
 
