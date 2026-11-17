@@ -37,8 +37,15 @@ GENERATING_INSTRUCTIONS = (
     f"A2UI {PROTOCOL_VERSION} format of the catalog below.\n"
     "- One component has the id 'root'; every other component is reached "
     "from it through 'child' or 'children'.\n"
-    "- Show values from the data model by binding to them with "
-    '{"@path": "/json/pointer"}; never copy values into the components.\n'
+    "- Show values from the data model by binding to them with a JSON "
+    'pointer, e.g. {"@path": "/title"}; never copy values into the '
+    "components.\n"
+    "- To repeat a component for each item of a list in the data model, "
+    'give its parent "children": {"path": "/items", "componentId": '
+    '"item_template"}. Inside the template, bind to the item\'s fields '
+    'with paths that do not start with "/", e.g. {"@path": "name"}: a '
+    'path starting with "/" reads from the root of the data model, not '
+    "from the item.\n"
     "- Bind an input to a path the data model does not have when the user "
     "is to fill it in.\n"
     "- A button that sends something back (submit, choose, confirm) has "
